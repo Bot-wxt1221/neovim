@@ -37,6 +37,19 @@ find_package(Msgpack 1.0.0 REQUIRED)
 find_package(Treesitter 0.20.9 REQUIRED)
 find_package(Unibilium 2.0 REQUIRED)
 
+GetBinaryDep(TARGET winpty
+    INSTALL_COMMAND ${CMAKE_COMMAND} -E make_directory ${DEPS_INSTALL_DIR}/bin
+      COMMAND ${CMAKE_COMMAND} -DFROM_GLOB=${DEPS_BUILD_DIR}/src/winpty/${TARGET_ARCH}/bin/*
+        -DTO=${DEPS_INSTALL_DIR}/bin/
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/CopyFilesGlob.cmake
+      COMMAND ${CMAKE_COMMAND} -DFROM_GLOB=${DEPS_BUILD_DIR}/src/winpty/include/*
+        -DTO=${DEPS_INSTALL_DIR}/include/
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/CopyFilesGlob.cmake
+      COMMAND ${CMAKE_COMMAND} -DFROM_GLOB=${DEPS_BUILD_DIR}/src/winpty/${TARGET_ARCH}/lib/*
+        -DTO=${DEPS_INSTALL_DIR}/lib/
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/CopyFilesGlob.cmake)
+
+
 target_link_libraries(main_lib INTERFACE
   iconv
   winpty
