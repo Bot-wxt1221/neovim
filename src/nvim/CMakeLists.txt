@@ -30,7 +30,8 @@ target_link_libraries(main_lib INTERFACE ${LUV_LIBRARY})
 
 find_package(Iconv REQUIRED)
 find_package(Libuv 1.28.0 REQUIRED)
-find_package(Libvterm 0.3.3 REQUIRED)
+find_package(Winpty 0.4.3 REQUIRED)
+include_directories(SYSTEM ${WINPTY_INCLUDE_DIRS})
 find_package(Lpeg REQUIRED)
 find_package(Msgpack 1.0.0 REQUIRED)
 find_package(Treesitter 0.20.9 REQUIRED)
@@ -38,7 +39,7 @@ find_package(Unibilium 2.0 REQUIRED)
 
 target_link_libraries(main_lib INTERFACE
   iconv
-  libvterm
+  winpty
   lpeg
   msgpack
   treesitter
@@ -153,6 +154,7 @@ endif()
 if(CMAKE_SYSTEM_NAME MATCHES "Windows")
   target_compile_definitions(main_lib INTERFACE _WIN32_WINNT=0x0602 MSWIN)
   target_link_libraries(main_lib INTERFACE netapi32)
+  target_link_libraries(main_lib INTERFACE ${WINPTY_LIBRARIES})
 elseif(CMAKE_SYSTEM_NAME MATCHES "Darwin")
   target_link_libraries(nvim_bin PRIVATE "-framework CoreServices")
 
@@ -749,6 +751,8 @@ if(WIN32)
   foreach(DEP_FILE IN ITEMS
       cat.exe
       tee.exe
+      winpty-agent.exe
+      winpty.dll
       win32yank.exe
       xxd.exe)
   get_filename_component(DEP_FILE_DIR ${DEP_FILE} DIRECTORY)

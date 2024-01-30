@@ -2,15 +2,27 @@
 // IWYU pragma: private, include "nvim/os/pty_process.h"
 
 #include <uv.h>
+#include <winpty.h>
 
 #include "nvim/event/process.h"
 #include "nvim/lib/queue_defs.h"
 #include "nvim/os/pty_conpty_win.h"
 
+typedef enum {
+  kWinpty,
+  kConpty,
+} PtyType;
+
 typedef struct pty_process {
   Process process;
   uint16_t width, height;
-  conpty_t *conpty;
+
+  union {
+    winpty_t *winpty;
+    conpty_t *conpty;
+  } object;
+  PtyType type;
+
   HANDLE finish_wait;
   HANDLE process_handle;
   uv_timer_t wait_eof_timer;

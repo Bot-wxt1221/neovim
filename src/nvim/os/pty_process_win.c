@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <winpty_constants.h>
 
 #include "nvim/ascii_defs.h"
 #include "nvim/eval/typval.h"
@@ -22,7 +23,12 @@ static void CALLBACK pty_process_finish1(void *context, BOOLEAN unused)
   PtyProcess *ptyproc = (PtyProcess *)context;
   Process *proc = (Process *)ptyproc;
 
-  os_conpty_free(ptyproc->conpty);
+if (ptyproc->type == kConpty
+      && ptyproc->object.conpty != NULL) {
+    os_conpty_free(ptyproc->object.conpty);
+    ptyproc->object.conpty = NULL;
+  }
+
   uv_timer_init(&proc->loop->uv, &ptyproc->wait_eof_timer);
   ptyproc->wait_eof_timer.data = (void *)ptyproc;
   uv_timer_start(&ptyproc->wait_eof_timer, wait_eof_timer_cb, 200, 200);
@@ -34,6 +40,10 @@ int pty_process_spawn(PtyProcess *ptyproc)
 {
   Process *proc = (Process *)ptyproc;
   int status = 0;
+  winpty_error_ptr_t err = NULL;
+  winpty_config_t *cfg = NULL;
+  winpty_spawn_config_t *spawncfg = NULL;
+  winpty_t *winpty_object = NULL;
   conpty_t *conpty_object = NULL;
   char *in_name = NULL;
   char *out_name = NULL;
@@ -47,12 +57,38 @@ int pty_process_spawn(PtyProcess *ptyproc)
 
   assert(proc->err.closed);
 
-  if (!os_has_conpty_working() || (conpty_object = os_conpty_init(&in_name,
-                                                                  &out_name, ptyproc->width,
-                                                                  ptyproc->height)) == NULL) {
-    status = UV_ENOSYS;
-    goto cleanup;
+if (os_has_conpty_working()) {
+    if ((conpty_object =
+         os_conpty_init(&in_name, &out_name, ptyproc->width, ptyproc->height)) != NULL) {
+      ptyproc->type = kConpty;
+    }
   }
+
+  if (ptyproc->type == kWinpty) {
+    cfg = winpty_config_new(WINPTY_FLAG_ALLOW_CURPROC_DESKTOP_CREATION, &err);
+    if (cfg == NULL) {
+      emsg = "winpty_config_new failed";
+      goto cleanup;
+    }
+
+    winpty_config_set_initial_size(cfg, ptyproc->width, ptyproc->height);
+    winpty_object = winpty_open(cfg, &err);
+    if (winpty_object == NULL) {
+      emsg = "winpty_open failed";
+      goto cleanup;
+    }
+
+    status = utf16_to_utf8(winpty_conin_name(winpty_object), -1, &in_name);
+    if (status != 0) {
+      emsg = "utf16_to_utf8(winpty_conin_name) failed";
+      goto cleanup;
+    }
+
+    status = utf16_to_utf8(winpty_conout_name(winpty_object), -1, &out_name);
+    if (status != 0) {
+      emsg = "utf16_to_utf8(winpty_conout_name) failed";
+      goto cleanup;
+    }
 
   if (!proc->in.closed) {
     in_req = xmalloc(sizeof(uv_connect_t));
@@ -94,16 +130,45 @@ int pty_process_spawn(PtyProcess *ptyproc)
     goto cleanup;
   }
 
-  if (!os_conpty_spawn(conpty_object,
-                       &process_handle,
-                       NULL,
-                       cmd_line,
-                       cwd,
-                       env)) {
-    emsg = "os_conpty_spawn failed";
-    status = (int)GetLastError();
-    goto cleanup;
-  }
+if (ptyproc->type == kConpty) {
+    if (!os_conpty_spawn(conpty_object,
+                         &process_handle,
+                         NULL,
+                         cmd_line,
+                         cwd,
+                         env)) {
+      emsg = "os_conpty_spawn failed";
+      status = (int)GetLastError();
+      goto cleanup;
+    }
+  } else {
+    spawncfg = winpty_spawn_config_new(WINPTY_SPAWN_FLAG_AUTO_SHUTDOWN,
+                                       NULL,  // Optional application name
+                                       cmd_line,
+                                       cwd,
+                                       env,
+                                       &err);
+    if (spawncfg == NULL) {
+      emsg = "winpty_spawn_config_new failed";
+      goto cleanup;
+    }
+
+    DWORD win_err = 0;
+    if (!winpty_spawn(winpty_object,
+                      spawncfg,
+                      &process_handle,
+                      NULL,  // Optional thread handle
+                      &win_err,
+                      &err)) {
+      if (win_err) {
+        status = (int)win_err;
+        emsg = "failed to spawn process";
+      } else {
+        emsg = "winpty_spawn failed";
+      }
+      goto cleanup;
+    }
+
   proc->pid = (int)GetProcessId(process_handle);
 
   if (!RegisterWaitForSingleObject(&ptyproc->finish_wait,
@@ -121,8 +186,12 @@ int pty_process_spawn(PtyProcess *ptyproc)
     uv_run(&proc->loop->uv, UV_RUN_ONCE);
   }
 
-  ptyproc->conpty = conpty_object;
+(ptyproc->type == kConpty) ?
+  (void *)(ptyproc->object.conpty = conpty_object) :
+  (void *)(ptyproc->object.winpty = winpty_object);
+
   ptyproc->process_handle = process_handle;
+  winpty_object = NULL;
   conpty_object = NULL;
   process_handle = NULL;
 
@@ -132,7 +201,17 @@ cleanup:
     ELOG("pty_process_spawn(%s): %s: error code: %d",
          proc->argv[0], emsg, status);
     status = os_translate_sys_error(status);
+  }else if (err != NULL) {
+    status = (int)winpty_error_code(err);
+    ELOG("pty_process_spawn(%s): %s: error code: %d",
+         proc->argv[0], emsg, status);
+    status = translate_winpty_error(status);
   }
+  winpty_error_free(err);
+  winpty_config_free(cfg);
+  winpty_spawn_config_free(spawncfg);
+  winpty_free(winpty_object);
+
   os_conpty_free(conpty_object);
   xfree(in_name);
   xfree(out_name);
@@ -155,12 +234,23 @@ const char *pty_process_tty_name(PtyProcess *ptyproc)
 void pty_process_resize(PtyProcess *ptyproc, uint16_t width, uint16_t height)
   FUNC_ATTR_NONNULL_ALL
 {
-  os_conpty_set_size(ptyproc->conpty, width, height);
+if (ptyproc->type == kConpty
+      && ptyproc->object.conpty != NULL) {
+    os_conpty_set_size(ptyproc->object.conpty, width, height);
+  } else if (ptyproc->object.winpty != NULL) {
+    winpty_set_size(ptyproc->object.winpty, width, height, NULL);
+  }
 }
 
 void pty_process_close(PtyProcess *ptyproc)
   FUNC_ATTR_NONNULL_ALL
 {
+if (ptyproc->type == kWinpty
+      && ptyproc->object.winpty != NULL) {
+    winpty_free(ptyproc->object.winpty);
+    ptyproc->object.winpty = NULL;
+  }
+
   Process *proc = (Process *)ptyproc;
 
   pty_process_close_master(ptyproc);
@@ -347,6 +437,34 @@ static void quote_cmd_arg(char *dest, size_t dest_remaining, const char *src)
   }
 }
 
+int translate_winpty_error(int winpty_errno)
+{
+  if (winpty_errno <= 0) {
+    return winpty_errno;  // If < 0 then it's already a libuv error.
+  }
+
+  switch (winpty_errno) {
+  case WINPTY_ERROR_OUT_OF_MEMORY:
+    return UV_ENOMEM;
+  case WINPTY_ERROR_SPAWN_CREATE_PROCESS_FAILED:
+    return UV_EAI_FAIL;
+  case WINPTY_ERROR_LOST_CONNECTION:
+    return UV_ENOTCONN;
+  case WINPTY_ERROR_AGENT_EXE_MISSING:
+    return UV_ENOENT;
+  case WINPTY_ERROR_UNSPECIFIED:
+    return UV_UNKNOWN;
+  case WINPTY_ERROR_AGENT_DIED:
+    return UV_ESRCH;
+  case WINPTY_ERROR_AGENT_TIMEOUT:
+    return UV_ETIMEDOUT;
+  case WINPTY_ERROR_AGENT_CREATION_FAILED:
+    return UV_EAI_FAIL;
+  default:
+    return UV_UNKNOWN;
+  }
+}
+
 typedef struct EnvNode {
   wchar_t *str;
   size_t len;
@@ -416,7 +534,8 @@ PtyProcess pty_process_init(Loop *loop, void *data)
   rv.process = process_init(loop, kProcessTypePty, data);
   rv.width = 80;
   rv.height = 24;
-  rv.conpty = NULL;
+  rv.object.winpty = NULL;
+  rv.type = kWinpty;
   rv.finish_wait = NULL;
   rv.process_handle = NULL;
   return rv;
