@@ -22,8 +22,7 @@ static void CALLBACK pty_process_finish1(void *context, BOOLEAN unused)
 {
   PtyProcess *ptyproc = (PtyProcess *)context;
   Process *proc = (Process *)ptyproc;
-
-   if (ptyproc->type == kConpty
+  if (ptyproc->type == kConpty
       && ptyproc->object.conpty != NULL) {
     os_conpty_free(ptyproc->object.conpty);
     ptyproc->object.conpty = NULL;
@@ -88,7 +87,7 @@ int pty_process_spawn(PtyProcess *ptyproc)
       emsg = "utf16_to_utf8(winpty_conout_name) failed";
       goto cleanup;
     }
-
+  }
   if (!proc->in.closed) {
     in_req = xmalloc(sizeof(uv_connect_t));
     uv_pipe_connect(in_req,
