@@ -207,6 +207,10 @@ jobs:
 
       - name: Build
         run: |
+          cd .dep
+          cd usr
+          cd bin
+          dir
           cmake --preset ci -D CMAKE_BUILD_TYPE='RelWithDebInfo'
           cmake --build build
 
