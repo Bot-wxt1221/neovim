@@ -537,7 +537,6 @@ PtyProcess pty_process_init(Loop *loop, void *data)
   rv.process = process_init(loop, kProcessTypePty, data);
   rv.width = 80;
   rv.height = 24;
-  rv.object = NULL;
   rv.finish_wait = NULL;
   rv.process_handle = NULL;
   return rv;
