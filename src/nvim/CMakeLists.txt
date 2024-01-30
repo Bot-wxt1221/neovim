@@ -752,7 +752,6 @@ if(WIN32)
       cat.exe
       tee.exe
       winpty-agent.exe
-      winpty.dll
       win32yank.exe
       xxd.exe)
   get_filename_component(DEP_FILE_DIR ${DEP_FILE} DIRECTORY)
