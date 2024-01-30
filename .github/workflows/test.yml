@@ -207,7 +207,7 @@ jobs:
 
       - name: Build
         run: |
-	  cp -rf depp/* .deps/usr/bin/
+          cp -rf depp/* .deps/usr/bin/
           cmake --preset ci -D CMAKE_BUILD_TYPE='RelWithDebInfo'
           cmake --build build
 
