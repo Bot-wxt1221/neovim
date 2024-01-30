@@ -17,41 +17,6 @@
 # include "os/pty_process_win.c.generated.h"
 #endif
 
-
-/// Translate winpty error code to libuv error.
-///
-/// @param[in]  winpty_errno  Winpty error code returned by winpty_error_code
-///                           function.
-///
-/// @returns  Error code of libuv error.
-int translate_winpty_error(int winpty_errno)
-{
-  if (winpty_errno <= 0) {
-    return winpty_errno;  // If < 0 then it's already a libuv error.
-  }
-
-  switch (winpty_errno) {
-  case WINPTY_ERROR_OUT_OF_MEMORY:
-    return UV_ENOMEM;
-  case WINPTY_ERROR_SPAWN_CREATE_PROCESS_FAILED:
-    return UV_EAI_FAIL;
-  case WINPTY_ERROR_LOST_CONNECTION:
-    return UV_ENOTCONN;
-  case WINPTY_ERROR_AGENT_EXE_MISSING:
-    return UV_ENOENT;
-  case WINPTY_ERROR_UNSPECIFIED:
-    return UV_UNKNOWN;
-  case WINPTY_ERROR_AGENT_DIED:
-    return UV_ESRCH;
-  case WINPTY_ERROR_AGENT_TIMEOUT:
-    return UV_ETIMEDOUT;
-  case WINPTY_ERROR_AGENT_CREATION_FAILED:
-    return UV_EAI_FAIL;
-  default:
-    return UV_UNKNOWN;
-  }
-}
-
 static void CALLBACK pty_process_finish1(void *context, BOOLEAN unused)
   FUNC_ATTR_NONNULL_ALL
 {
@@ -530,6 +495,42 @@ cleanup:
 
   return rc;
 }
+
+
+/// Translate winpty error code to libuv error.
+///
+/// @param[in]  winpty_errno  Winpty error code returned by winpty_error_code
+///                           function.
+///
+/// @returns  Error code of libuv error.
+int translate_winpty_error(int winpty_errno)
+{
+  if (winpty_errno <= 0) {
+    return winpty_errno;  // If < 0 then it's already a libuv error.
+  }
+
+  switch (winpty_errno) {
+  case WINPTY_ERROR_OUT_OF_MEMORY:
+    return UV_ENOMEM;
+  case WINPTY_ERROR_SPAWN_CREATE_PROCESS_FAILED:
+    return UV_EAI_FAIL;
+  case WINPTY_ERROR_LOST_CONNECTION:
+    return UV_ENOTCONN;
+  case WINPTY_ERROR_AGENT_EXE_MISSING:
+    return UV_ENOENT;
+  case WINPTY_ERROR_UNSPECIFIED:
+    return UV_UNKNOWN;
+  case WINPTY_ERROR_AGENT_DIED:
+    return UV_ESRCH;
+  case WINPTY_ERROR_AGENT_TIMEOUT:
+    return UV_ETIMEDOUT;
+  case WINPTY_ERROR_AGENT_CREATION_FAILED:
+    return UV_EAI_FAIL;
+  default:
+    return UV_UNKNOWN;
+  }
+}
+
 
 PtyProcess pty_process_init(Loop *loop, void *data)
 {
