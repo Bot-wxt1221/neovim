@@ -207,7 +207,7 @@ jobs:
 
       - name: Build
         run: |
-          cd .dep
+          cd .deps
           cd usr
           cd bin
           dir
