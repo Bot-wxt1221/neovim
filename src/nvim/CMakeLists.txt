@@ -154,7 +154,7 @@ endif()
 if(CMAKE_SYSTEM_NAME MATCHES "Windows")
   target_compile_definitions(main_lib INTERFACE _WIN32_WINNT=0x0602 MSWIN)
   target_link_libraries(main_lib INTERFACE netapi32)
-  target_link_libraries(main_lib INTERFACE ${DEPS_LIB_DIR}/winpty.lib)
+  target_link_libraries(main_lib INTERFACE .deps/usr/lib/winpty.lib)
 elseif(CMAKE_SYSTEM_NAME MATCHES "Darwin")
   target_link_libraries(nvim_bin PRIVATE "-framework CoreServices")
 
