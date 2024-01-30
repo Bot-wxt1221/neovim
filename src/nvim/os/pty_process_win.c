@@ -17,22 +17,6 @@
 # include "os/pty_process_win.c.generated.h"
 #endif
 
-static void CALLBACK pty_process_finish1(void *context, BOOLEAN unused)
-  FUNC_ATTR_NONNULL_ALL
-{
-  PtyProcess *ptyproc = (PtyProcess *)context;
-  Process *proc = (Process *)ptyproc;
-
-if (ptyproc->type == kConpty
-      && ptyproc->object.conpty != NULL) {
-    os_conpty_free(ptyproc->object.conpty);
-    ptyproc->object.conpty = NULL;
-  }
-
-  uv_timer_init(&proc->loop->uv, &ptyproc->wait_eof_timer);
-  ptyproc->wait_eof_timer.data = (void *)ptyproc;
-  uv_timer_start(&ptyproc->wait_eof_timer, wait_eof_timer_cb, 200, 200);
-}
 
 /// @returns zero on success, or negative error code.
 int pty_process_spawn(PtyProcess *ptyproc)
@@ -231,6 +215,22 @@ const char *pty_process_tty_name(PtyProcess *ptyproc)
   return "?";
 }
 
+static void CALLBACK pty_process_finish1(void *context, BOOLEAN unused)
+  FUNC_ATTR_NONNULL_ALL
+{
+  PtyProcess *ptyproc = (PtyProcess *)context;
+  Process *proc = (Process *)ptyproc;
+
+if (ptyproc->type == kConpty
+      && ptyproc->object.conpty != NULL) {
+    os_conpty_free(ptyproc->object.conpty);
+    ptyproc->object.conpty = NULL;
+  }
+
+  uv_timer_init(&proc->loop->uv, &ptyproc->wait_eof_timer);
+  ptyproc->wait_eof_timer.data = (void *)ptyproc;
+  uv_timer_start(&ptyproc->wait_eof_timer, wait_eof_timer_cb, 200, 200);
+}
 void pty_process_resize(PtyProcess *ptyproc, uint16_t width, uint16_t height)
   FUNC_ATTR_NONNULL_ALL
 {
